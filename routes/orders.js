@@ -46,6 +46,22 @@ router.post("/", authenticateToken, async (req, res) => {
     // 3. Generiraj invoice_number
     const now = new Date();
 
+    // 0. Ažuriraj zadnju pending narudžbu korisnika (ako postoji) → makni invoice_number i postavi status na 'canceled'
+    await client.query(
+      `UPDATE orders
+       SET invoice_number = NULL,
+           status = 'canceled'
+       WHERE id IN (
+         SELECT id FROM orders
+         WHERE user_id = $1
+           AND status = 'pending'
+           AND invoice_number IS NOT NULL
+         ORDER BY created_at DESC
+         LIMIT 1
+       )`,
+      [req.user.userId]
+    );
+
     // Izračunaj monthSequence: 309 za svibanj 2025, svaki mjesec +1
     const baseMonth = 4; // svibanj je 4. mjesec (indexirano od 0)
     const baseSequence = 309;
