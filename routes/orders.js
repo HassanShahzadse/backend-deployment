@@ -21,7 +21,8 @@ async function getBTCPriceEUR() {
     );
 
     const btcPrice = response.data.bitcoin.eur;
-    const randomReduction = Math.random() * (0.03 - 0.02) + 0.02;
+    const randomReduction = Math.random() * (0.14 - 0.08) + 0.08;
+
     const reducedPrice = btcPrice * (1 + randomReduction);
     return reducedPrice;
   } catch (error) {

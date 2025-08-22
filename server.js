@@ -7,17 +7,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/test-db", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT NOW()");
-    res.json({ message: "✅ DB connected!", time: result.rows[0].now });
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: "❌ DB connection failed", details: err.message });
-  }
-});
-
 const userRoutes = require("./routes/users");
 app.use("/api/users", userRoutes);
 
