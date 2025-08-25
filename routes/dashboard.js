@@ -3,69 +3,51 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const authenticateToken = require("../middleware/auth");
-const redis = require("../lib/redis");
 
 router.get("/", authenticateToken, async (req, res) => {
   const userId = req.user.userId;
-  const kPurchased = `purchased:${userId}`;
-  const kUsed = `usage:${userId}`;
 
   try {
-    let totalPurchased = 0;
-    let totalUsage = 0;
+    const [purchasedRes, usageRes] = await Promise.all([
+      pool.query(
+        `SELECT total_purchased::bigint AS total_purchased
+         FROM user_purchased_counters
+         WHERE user_id = $1`,
+        [userId]
+      ),
+      pool.query(
+        `SELECT total_usage::bigint AS total_usage
+         FROM user_usage_counters
+         WHERE user_id = $1`,
+        [userId]
+      ),
+    ]);
 
-    // 1) Brzi put preko Redis-a (samo ako je omogućen i dostupan)
-    let cacheHit = false;
-    if (redis && redis.__enabled) {
-      try {
-        const [purchasedStr, usedStr] = await redis.mget(kPurchased, kUsed);
-        if (purchasedStr !== null && usedStr !== null) {
-          totalPurchased = parseInt(purchasedStr, 10) || 0;
-          totalUsage = parseInt(usedStr, 10) || 0;
-          cacheHit = true;
-        }
-      } catch (e) {
-        // Ako Redis padne, nastavi na DB fallback bez prekida endpointa
-        console.warn("⚠️ Redis unavailable, falling back to DB.");
-      }
-    }
+    let totalPurchased = Number(purchasedRes.rows[0]?.total_purchased ?? 0);
+    let totalUsage = Number(usageRes.rows[0]?.total_usage ?? 0);
 
-    // 2) DB fallback (ili cold start cache miss)
-    if (!cacheHit) {
-      const [ordersRes, usageRes] = await Promise.all([
-        pool.query(
-          `SELECT COALESCE(SUM(api_calls_quantity),0)::bigint AS total_purchased
+    // Fallback ako brojači još nisu inicijalizirani
+    if (purchasedRes.rowCount === 0) {
+      const agg = await pool.query(
+        `SELECT COALESCE(SUM(api_calls_quantity),0)::bigint AS total_purchased
            FROM orders
-           WHERE user_id = $1 AND LOWER(status) = 'paid'`,
-          [userId]
-        ),
-        pool.query(
-          `SELECT COUNT(*)::bigint AS total_usage
-           FROM api_token_usage
-           WHERE user_id = $1`,
-          [userId]
-        ),
-      ]);
-
-      totalPurchased = Number(ordersRes.rows[0].total_purchased) || 0;
-      totalUsage = Number(usageRes.rows[0].total_usage) || 0;
-
-      // 3) “Prime” cache za brza buduća čitanja (ako je Redis omogućen)
-      if (redis && redis.__enabled) {
-        try {
-          await redis
-            .multi()
-            .set(kPurchased, totalPurchased)
-            .set(kUsed, totalUsage)
-            .exec();
-        } catch (e) {
-          // Bez panike ako cache priming ne uspije
-          console.warn("⚠️ Failed to prime Redis cache.");
-        }
-      }
+          WHERE user_id = $1 AND LOWER(status) = 'paid'`,
+        [userId]
+      );
+      totalPurchased = Number(agg.rows[0].total_purchased || 0);
     }
 
-    const totalRemaining = totalPurchased - totalUsage;
+    if (usageRes.rowCount === 0) {
+      const agg = await pool.query(
+        `SELECT COUNT(*)::bigint AS total_usage
+           FROM api_token_usage
+          WHERE user_id = $1`,
+        [userId]
+      );
+      totalUsage = Number(agg.rows[0].total_usage || 0);
+    }
+
+    const totalRemaining = Math.max(totalPurchased - totalUsage, 0);
     res.json({ totalPurchased, totalUsage, totalRemaining });
   } catch (err) {
     console.error("❌ Dashboard balance error:", err);

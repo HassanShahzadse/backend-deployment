@@ -54,7 +54,7 @@ function randomUserAgent() {
     "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
   ];
 
-  return agents[Math.floor(Math.random() * agents.length)];
+  return getRandomElement(agents);
 }
 
 // Glavna funkcija koja generira lažne API logove
@@ -78,32 +78,21 @@ async function generateFakeApiUsage() {
     const status = getRandomElement(statuses);
     const ip = randomIp();
     const userAgent = randomUserAgent();
-
     const timestamp = new Date();
 
     try {
       await pool.query(
         `INSERT INTO api_token_usage 
-     (id, user_id, token, endpoint, method, response_status, ip_address, user_agent, request_timestamp)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         (id, user_id, token, endpoint, method, response_status, ip_address, user_agent, request_timestamp)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [id, user_id, token, endpoint, method, status, ip, userAgent, timestamp]
       );
-
-      // Obriši najstarijih 100.000 zapisa
-      await pool.query(`
-    DELETE FROM api_token_usage
-    WHERE id IN (
-      SELECT id FROM api_token_usage
-      ORDER BY request_timestamp ASC
-      LIMIT 100000
-    )
-  `);
     } catch (err) {
       console.error("DB error:", err);
     }
   }
 
-  console.log(`✅ Deleted ${howMany} fake API token usage records.`);
+  console.log(`✅ Inserted ${howMany} fake API token usage records.`);
 }
 
 module.exports = { generateFakeApiUsage };
