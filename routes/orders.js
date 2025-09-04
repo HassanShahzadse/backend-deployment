@@ -21,7 +21,7 @@ async function getBTCPriceEUR() {
     );
 
     const btcPrice = response.data.bitcoin.eur;
-    const randomReduction = Math.random() * (0.14 - 0.08) + 0.08;
+    const randomReduction = Math.random() * (0.014 - 0.008) + 0.008;
 
     const reducedPrice = btcPrice * (1 + randomReduction);
     return reducedPrice;
@@ -130,6 +130,24 @@ router.post("/", authenticateToken, async (req, res) => {
       .slice(0, 19)
       .replace("T", " ");
 
+    // === GENERIRAJ BATCH NUMBER ===
+    const orderMatch = newOrderNumber.match(/PNA25-(\d+)$/);
+    let formattedNumber = "001"; // default
+
+    if (orderMatch) {
+      const lastThree = orderMatch[1].slice(-3); // zadnje 3 znamenke
+      if (/^\d+$/.test(lastThree)) {
+        const newValue = parseInt(lastThree, 10) + 98;
+        formattedNumber = String(newValue).padStart(3, "0");
+      }
+    }
+
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate() + 9).padStart(2, "0"); // dan +9
+
+    const batchNumber = `${y}${m}${d}-${formattedNumber}`;
+
     const tempOrder = {
       user_id: req.user.userId,
       amount,
@@ -140,6 +158,7 @@ router.post("/", authenticateToken, async (req, res) => {
       invoice_number: invoiceNumber,
       api_calls_quantity: api_calls_quantity || 0,
       order_number: newOrderNumber,
+      batch_number: batchNumber,
       created_at: createdAtFormatted,
     };
 
