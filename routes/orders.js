@@ -6,6 +6,8 @@ const { encryptOrderData } = require("../utils/encryption");
 require("dotenv").config();
 const axios = require("axios");
 const crypto = require("crypto");
+const sendEmail = require("../utils/sendEmail");
+
 
 // Funkcija za dohvat BTC cijene
 async function getBTCPriceEUR() {
@@ -122,7 +124,8 @@ router.post("/", authenticateToken, async (req, res) => {
       [req.user.userId]
     );
     const user = userRes.rows[0];
-
+    throw new Error("test");
+    const userEmail = user.email ||user.billing_email;
     // 6. Pripremi podatke narudžbe
     const createdAt = new Date();
     const createdAtFormatted = createdAt
@@ -198,6 +201,22 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const order = insertRes.rows[0];
 
+     try {
+        await sendEmail(
+            userEmail, 
+            `Your Order ${order.order_number} is created successfully`, // Subject
+            'orderSuccess',
+            {
+                User_Name: user.company_name || 'Valued Customer', // Use company name or default
+                ORDER_ID: order.order_number,
+                TOTAL_AMOUNT: `${Number(order.price_eur).toFixed(2)} EUR`,
+                ORDER_DETAILS_LINK: `${process.env.FRONTEND_URL}/orders` 
+            }
+        );
+    } catch (emailError) {
+        console.error("❌ E-mail slanje greška (Order Confirmation):", emailError.message);
+    }
+
     client.release();
 
     res.status(201).json({
@@ -206,6 +225,32 @@ router.post("/", authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error("Greška pri kreiranju narudžbe:", err);
+    
+    // Send failure email
+    try {
+        const userRes = await pool.query(
+            `SELECT email, company_name, billing_email FROM users WHERE id = $1`,
+            [req.user.userId]
+        );
+        const user = userRes.rows[0];
+        const userEmail = user.email || user.billing_email;
+
+        if (userEmail) {
+            await sendEmail(
+                userEmail,
+                'Order Creation Failed',
+                'orderFailed',
+                {
+                    User_Name: user.company_name || 'Valued Customer',
+                    ORDER_ID: 'N/A',
+                    RETRY_PAYMENT_LINK: `${process.env.FRONTEND_URL}/payment`
+                }
+            );
+        }
+    } catch (emailError) {
+        console.error("❌ Failed to send failure email:", emailError.message);
+    }
+
     res.status(500).json({ error: err.message });
   }
 });
@@ -301,32 +346,71 @@ router.delete("/", async (req, res) => {
   }
 });
 
-// Resetiraj invoice_number putem encrypted_key
-router.patch("/reset-invoice", async (req, res) => {
-  const { key } = req.query;
+router.patch("/update-status", async (req, res) => {
+ // key query se ya body se aayegi, hum body se status bhi lenge
+ const { key, status } = req.body; 
 
-  if (!key) {
-    return res.status(400).json({ error: "Missing key" });
-  }
-
-  try {
-    const updateRes = await pool.query(
-      `UPDATE orders 
-       SET invoice_number = NULL, status = 'cancelled' 
-       WHERE encrypted_key = $1 
-       RETURNING *`,
-      [key]
-    );
-
-    if (updateRes.rowCount === 0) {
-      return res.status(404).json({ error: "Order not found" });
+ if (!key || !status) {
+  return res.status(400).json({ error: "Missing key or status." });
+ }
+    
+    // Status validation
+    const allowedStatuses = ['cancelled', 'failed', 'paid'];
+    if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status value provided." });
     }
 
-    res.json({ message: "Invoice number removed", order: updateRes.rows[0] });
-  } catch (err) {
-    console.error("Error resetting invoice number:", err);
-    res.status(500).json({ error: "Internal server error" });
+ try {
+  // 1. Order status update karein aur agar 'cancelled' hai to invoice number NULL karein
+  const updateRes = await pool.query(
+   `UPDATE orders 
+   SET status = $1,
+            invoice_number = CASE WHEN $1 = 'cancelled' THEN NULL ELSE invoice_number END 
+   WHERE encrypted_key = $2 
+   RETURNING id, order_number, user_id, price_eur`,
+   [status, key]
+  );
+
+  if (updateRes.rowCount === 0) {
+   return res.status(404).json({ error: "Order not found" });
   }
+    const order = updateRes.rows[0];
+
+    // 2. User details fetch karein (Email ke liye)
+    const userRes = await pool.query(
+        `SELECT email, billing_email, company_name FROM users WHERE id = $1`,
+        [order.user_id]
+    );
+    const user = userRes.rows[0];
+    const userEmail = user.billing_email || user.email;
+
+    // 3. ✨ ORDER FAILED EMAIL LOGIC (HIGHLIGHTED) ✨
+    if (status === 'failed') {
+        try {
+            await sendEmail(
+                userEmail, 
+                `❌ Payment Failed for Order ${order.order_number}`, 
+                'orderFailed', // Template: orderFailed.html
+                {
+                    User_Name: user.company_name || 'Valued Customer', 
+                    ORDER_ID: order.order_number,
+                    // Retry link jo frontend par order ID ya encrypted key ke saath jaayega
+                    RETRY_PAYMENT_LINK: `${process.env.FRONTEND_URL}/checkout?retry=${order.id}` 
+                }
+            );
+            console.log(`❌ Order Failed email sent for Order ${order.order_number}`);
+        } catch (emailError) {
+            console.error("❌ E-mail slanje greška (Order Failed):", emailError.message);
+        }
+    }
+    // Agar status 'paid' ho to yahan Order Paid ka email logic aa sakta hai
+
+  res.json({ message: `Order status updated to ${status}.`, order: order });
+ } catch (err) {
+  console.error("Error updating order status:", err);
+  res.status(500).json({ error: "Internal server error" });
+ }
 });
+
 
 module.exports = router;

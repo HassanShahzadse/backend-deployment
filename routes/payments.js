@@ -53,6 +53,22 @@ router.get("/success", async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
+    const order = update.rows[0];
+
+    // Reset low credit and zero credit alert flags when user tops up
+    try {
+      await pool.query(
+        `UPDATE user_purchased_counters 
+         SET last_low_alert_at = NULL, last_zero_alert_at = NULL 
+         WHERE user_id = $1`,
+        [order.user_id]
+      );
+      console.log(`✅ Reset credit alert flags for user ${order.user_id}`);
+    } catch (resetErr) {
+      console.error("❌ Failed to reset alert flags:", resetErr);
+      // Don't fail the payment success response
+    }
+
     res.json({
       status: "success",
       message: "Payment received. Order status updated.",

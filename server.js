@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const pool = require("./db");
+require("./cron/dailyCreditReport");
+require("./cron/lowCreditAlert");
+require("./cron/zeroCreditAlert");
 
 const app = express();
 app.use(cors());

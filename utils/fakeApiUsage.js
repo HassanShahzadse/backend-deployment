@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require("uuid");
 const pool = require("../db");
 
-// Konfiguracija testnih podataka
+
 const endpoints = [
   "/api/v1/price",
   "/api/v1/market",
