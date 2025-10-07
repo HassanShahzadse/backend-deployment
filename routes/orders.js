@@ -124,7 +124,6 @@ router.post("/", authenticateToken, async (req, res) => {
       [req.user.userId]
     );
     const user = userRes.rows[0];
-    throw new Error("test");
     const userEmail = user.email ||user.billing_email;
     // 6. Pripremi podatke narudžbe
     const createdAt = new Date();
