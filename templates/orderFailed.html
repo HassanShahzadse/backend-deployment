@@ -1,76 +1,55 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="utf-8">
     <title>Order Confirmation</title>
     <style>
         /* Global styles for better email client compatibility */
-        body,
-        table,
-        td,
-        a {
-            -webkit-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-        }
-
-        table,
-        td {
-            mso-table-lspace: 0pt;
-            mso-table-rspace: 0pt;
-        }
-
-        img {
-            -ms-interpolation-mode: bicubic;
-        }
-
-        a {
-            text-decoration: none;
-            color: inherit;
-        }
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; }
+        a { text-decoration: none; color: inherit; }
     </style>
 </head>
-
 <body style="margin: 0; padding: 0; background-color: #ffffff;">
     <center style="width: 100%; background-color: #ffffff; padding: 40px 0;">
         <!-- Outer Box -->
-        <table align="center" border="0" cellpadding="0" cellspacing="0" width="600"
-            style="background-color: #FFFFFF; max-width: 600px; border-radius: 10px; border: 2px solid #FFFFFF;">
-
-            <!-- Logo Section -->
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" 
+               style="background-color: #FFFFFF; max-width: 600px; border-radius: 10px; border: 2px solid #FFFFFF;">
+     
+<!-- Logo Section -->
+<tr>
+    <td align="left" style="padding: 0px 0 10px 0px;">
+        <table border="0" cellspacing="0" cellpadding="0" 
+               style="background-color: #ffffff; padding: 0px; display: inline-block;">
             <tr>
-                <td align="left" style="padding: 0px 0 10px 0px;">
-                    <table border="0" cellspacing="0" cellpadding="0"
-                        style="background-color: #ffffff; padding: 0px; display: inline-block;">
-                        <tr>
-                            <td align="left">
-                                <img src="https://www.blocklytics.net/assets/images/logos/logo.webp" alt="Company Logo"
-                                    width="200"
-                                    style="display: block; max-width: 200px; height: auto; border: 0; outline: none; text-decoration: none;">
-                            </td>
-                        </tr>
-                    </table>
+                <td align="left">
+                    <img src="https://www.blocklytics.net/assets/images/logos/logo.webp" 
+                         alt="Company Logo" 
+                         width="200" 
+                         style="display: block; max-width: 200px; height: auto; border: 0; outline: none; text-decoration: none;">
                 </td>
             </tr>
+        </table>
+    </td>
+</tr>
 
-
+           
 
             <tr>
                 <td align="left" style="padding: 50px 0px; background-color: #FFFFFF; border-radius: 10px;">
                     <table border="0" cellpadding="0" cellspacing="0" width="100%">
-
+                      
                         <tr>
                             <td style="padding: 0 0 20px 0;">
-                                <p
-                                    style="font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #000; margin: 0;">
+                                <p style="font-family: Arial, sans-serif; font-size: 16px; line-height: 24px; color: #000; margin: 0;">
                                     Hi {{User_Name}},
                                     <br><br>
-                                    An order with reference #{{ORDER_ID}} was submitted, but we did not receive a
-                                    payment. The order could not be processed.
+                                   An order with reference #{{ORDER_ID}} was submitted, but we did not receive a payment. The order could not be processed.
                                 </p>
                             </td>
-                        </tr>
-
+                        </tr>                
+                    
                     </table>
                 </td>
             </tr>
@@ -78,8 +57,7 @@
             <!-- Footer -->
             <tr>
                 <td align="left" style="padding: 0">
-                    <p
-                        style="font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #AAAAAA; margin: 0;">
+                    <p style="font-family: Arial, sans-serif; font-size: 14px; line-height: 20px; color: #AAAAAA; margin: 0;">
                         If you have any questions, please contact our support team.
                         <br>
                         &copy; 2025 blocklytics.net. All Rights Reserved.
@@ -89,5 +67,4 @@
         </table>
     </center>
 </body>
-
 </html>

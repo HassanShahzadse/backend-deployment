@@ -2,9 +2,9 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const pool = require("./db");
-require("./cron/dailyCreditReport");
-require("./cron/lowCreditAlert");
-require("./cron/zeroCreditAlert");
+//require("./cron/dailyCreditReport");
+//require("./cron/lowCreditAlert");
+//require("./cron/zeroCreditAlert");
 
 const app = express();
 app.use(cors());
@@ -28,11 +28,12 @@ app.use("/api/usage", usageRoutes);
 const creditBalanceRoutes = require("./routes/dashboard");
 app.use("/api/credit-balance", creditBalanceRoutes);
 
+const checkApiKey = require("./middleware/checkApiKey");
+const apiService = require("./public_service/api");
+app.use("/api/public/v1/", checkApiKey, apiService);
+
 const { autoCloseInactiveTickets } = require("./utils/autoCloseTickets");
 setInterval(autoCloseInactiveTickets, 60 * 60 * 1000); // every hour
-
-const { generateFakeApiUsage } = require("./utils/fakeApiUsage");
-setInterval(generateFakeApiUsage, 60 * 1000); // svake minute
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

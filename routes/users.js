@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid"); // dodano za generiranje api_key
 const authenticateToken = require("../middleware/auth");
 
 // Registracija korisnika
@@ -15,25 +16,29 @@ router.post("/register", async (req, res) => {
     billing_email,
     payment_provider,
     tax_percentage,
-    vat_id, // 1. Dodano ovdje
+    vat_id,
   } = req.body;
 
   try {
-    const existingUser = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
-    );
-
+    // Provjera postoji li već korisnik
+    const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (existingUser.rows.length > 0) {
       return res.status(400).json({ error: "User already exists" });
     }
 
+    // Hash lozinke
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generiraj API ključ (UUID v4 format)
+    const api_key = uuidv4();
+
+    // Unos novog korisnika
     const newUser = await pool.query(
       `INSERT INTO users 
-      (email, password, company_name, primary_address, billing_email, payment_provider, tax_percentage, vat_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, created_at`,
+       (email, password, company_name, primary_address, billing_email, 
+        payment_provider, tax_percentage, vat_id, api_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, email, company_name, api_key, created_at`,
       [
         email,
         hashedPassword,
@@ -43,11 +48,13 @@ router.post("/register", async (req, res) => {
         payment_provider,
         tax_percentage,
         vat_id,
+        api_key,
       ]
     );
 
     res.status(201).json(newUser.rows[0]);
   } catch (err) {
+    console.error("Registration error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -57,10 +64,7 @@ router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
-
+    const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (user.rows.length === 0) {
       return res.status(400).json({ error: "Invalid credentials" });
     }
@@ -83,9 +87,11 @@ router.post("/login", async (req, res) => {
         id: user.rows[0].id,
         email: user.rows[0].email,
         company_name: user.rows[0].company_name,
+        api_key: user.rows[0].api_key, // uključeno dohvaćanje api_key-a
       },
     });
   } catch (err) {
+    console.error("Login error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -95,7 +101,7 @@ router.get("/me", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, email, company_name, primary_address, billing_email, 
-              payment_provider, tax_percentage, vat_id, created_at 
+              payment_provider, tax_percentage, vat_id, api_key, created_at 
        FROM users WHERE id = $1`,
       [req.user.userId]
     );
@@ -106,6 +112,7 @@ router.get("/me", authenticateToken, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("Fetch user error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
