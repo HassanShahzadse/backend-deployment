@@ -73,28 +73,30 @@ router.post("/", authenticateToken, async (req, res) => {
       (now.getMonth() - baseMonth) +
       (now.getFullYear() - 2025) * 12;
 
-    // Dohvati sve invoice_number za taj monthSequence (per user)
+    // User-specific identifier (last part of UUID after last hyphen)
+    const userIdPart = req.user.userId.split('-').pop();
+
+    // Dohvati sve invoice_number za ovog korisnika u ovom mjesecu
     const invoiceCheck = await client.query(
       `SELECT invoice_number FROM orders
    WHERE invoice_number LIKE $1 AND user_id = $2`,
-      [`8000315658-${currentSequence}-%`, req.user.userId]
+      [`${userIdPart}-${currentSequence}-%`, req.user.userId]
     );
 
-    let invoiceRand;
+    let userSequence;
     if (invoiceCheck.rowCount === 0) {
-      // Prvi račun u mjesecu → random broj 1–9
-      invoiceRand = Math.floor(Math.random() * 9) + 1;
+      // Prvi račun ovog korisnika u ovom mjesecu
+      userSequence = 1;
     } else {
       // Idući redni broj → max + 1
       const used = invoiceCheck.rows.map((row) => {
-        const match = row.invoice_number.match(/8000315658-\d+-(\d+)/);
+        const match = row.invoice_number.match(/-(\d+)$/);
         return match ? parseInt(match[1], 10) : 0;
       });
-      invoiceRand = Math.max(...used) + 1;
+      userSequence = Math.max(...used) + 1;
     }
 
-    const invoiceNumber = `8000315658-${currentSequence}-${invoiceRand}`;
-
+    const invoiceNumber = `${userIdPart}-${currentSequence}-${userSequence}`;
     // 4. Generiraj order_number
     const lastOrderRes = await client.query(
       `SELECT order_number 
