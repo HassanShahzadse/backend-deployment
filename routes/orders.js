@@ -73,30 +73,27 @@ router.post("/", authenticateToken, async (req, res) => {
       (now.getMonth() - baseMonth) +
       (now.getFullYear() - 2025) * 12;
 
-    // User-specific identifier (last part of UUID after last hyphen)
-    const userIdPart = req.user.userId.split('-').pop();
-
-    // Dohvati sve invoice_number za ovog korisnika u ovom mjesecu
+    // Dohvati sve invoice_number za taj monthSequence
     const invoiceCheck = await client.query(
       `SELECT invoice_number FROM orders
    WHERE invoice_number LIKE $1 AND user_id = $2`,
-      [`${userIdPart}-${currentSequence}-%`, req.user.userId]
+      [`8000315658-${currentSequence}-%`, req.user.userId]
     );
-
-    let userSequence;
+    let invoiceRand;
     if (invoiceCheck.rowCount === 0) {
-      // Prvi račun ovog korisnika u ovom mjesecu
-      userSequence = 1;
+      // Prvi račun u mjesecu → random broj 1–9
+      invoiceRand = Math.floor(Math.random() * 9) + 1;
     } else {
       // Idući redni broj → max + 1
       const used = invoiceCheck.rows.map((row) => {
-        const match = row.invoice_number.match(/-(\d+)$/);
+        const match = row.invoice_number.match(/8000315658-\d+-(\d+)/);
         return match ? parseInt(match[1], 10) : 0;
       });
-      userSequence = Math.max(...used) + 1;
+      invoiceRand = Math.max(...used) + 1;
     }
 
-    const invoiceNumber = `${userIdPart}-${currentSequence}-${userSequence}`;
+    const invoiceNumber = `8000315658-${currentSequence}-${invoiceRand}`;
+
     // 4. Generiraj order_number
     const lastOrderRes = await client.query(
       `SELECT order_number 
@@ -202,21 +199,6 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const order = insertRes.rows[0];
 
-     try {
-        await sendEmail(
-            userEmail, 
-            `Your Order ${order.order_number} is created successfully`, // Subject
-            'orderSuccess',
-            {
-                User_Name: user.company_name || 'Valued Customer', // Use company name or default
-                ORDER_ID: order.order_number,
-                TOTAL_AMOUNT: `${Number(order.price_eur).toFixed(2)} EUR`,
-                ORDER_DETAILS_LINK: `${process.env.FRONTEND_URL}/orders` 
-            }
-        );
-    } catch (emailError) {
-        console.error("❌ E-mail slanje greška (Order Confirmation):", emailError.message);
-    }
 
     client.release();
 
