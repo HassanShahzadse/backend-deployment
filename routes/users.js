@@ -32,12 +32,15 @@ router.post("/register", async (req, res) => {
     // Generiraj API ključ (UUID v4 format)
     const api_key = uuidv4();
 
+    // Generiraj unique_invoice_number (10-digit unique code)
+    const unique_invoice_number = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+
     // Unos novog korisnika
     const newUser = await pool.query(
       `INSERT INTO users 
        (email, password, company_name, primary_address, billing_email, 
-        payment_provider, tax_percentage, vat_id, api_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        payment_provider, tax_percentage, vat_id, api_key, unique_invoice_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, email, company_name, api_key, created_at`,
       [
         email,
@@ -49,6 +52,7 @@ router.post("/register", async (req, res) => {
         tax_percentage,
         vat_id,
         api_key,
+        unique_invoice_number,
       ]
     );
 
