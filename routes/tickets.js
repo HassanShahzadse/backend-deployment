@@ -72,10 +72,10 @@ router.post("/", authenticateToken, async (req, res) => {
     const user = userDetailsRes.rows[0];
 
   
-    // 1. Kreiraj ticket
+    // 1. Kreiraj ticket with scheduled reply at 3 hours
     const ticketRes = await pool.query(
-      `INSERT INTO tickets (user_id, title, status)
-       VALUES ($1, $2, 'waiting')
+      `INSERT INTO tickets (user_id, title, status, scheduled_reply_at)
+       VALUES ($1, $2, 'waiting', NOW() + INTERVAL '3 hours')
        RETURNING id, title, status, created_at`,
       [req.user.userId, title]
     );
@@ -105,39 +105,6 @@ router.post("/", authenticateToken, async (req, res) => {
     } catch (emailErr) {
         console.error("❌ Email failed (New Ticket):", emailErr.message);
     };
-
-
-    // 3. Automatski odgovor ChatGPT-a
-    setTimeout(async () => {
-      try {
-        const messagesRes = await pool.query(
-          `SELECT sender, message FROM ticket_messages
-           WHERE ticket_id = $1
-           ORDER BY created_at ASC`,
-          [ticketId]
-        );
-
-        const conversation = messagesRes.rows.map((msg) => ({
-          role: msg.sender === "user" ? "user" : "assistant",
-          content: msg.message,
-        }));
-
-        const chatgptResponse = await getChatGPTReply(conversation);
-
-        await pool.query(
-          `INSERT INTO ticket_messages (ticket_id, sender, message)
-           VALUES ($1, 'admin', $2)`,
-          [ticketId, chatgptResponse]
-        );
-
-        await pool.query(
-          `UPDATE tickets SET status = 'waiting_user', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [ticketId]
-        );
-      } catch (err) {
-        console.error("Auto ChatGPT reply error:", err);
-      }
-    }, 0);
 
     res.status(201).json({
       ticket: ticketRes.rows[0],
@@ -175,47 +142,15 @@ router.post("/:id/messages", authenticateToken, async (req, res) => {
       [ticketId, message]
     );
 
-    // 2. Ažuriraj status i vrijeme
+    // 2. Ažuriraj status i schedule reply for 3 hours
     await pool.query(
-      `UPDATE tickets SET status = 'waiting', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      `UPDATE tickets SET status = 'waiting', scheduled_reply_at = NOW() + INTERVAL '3 hours', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [ticketId]
     );
 
-    // 3. Odgovori ChatGPT-om asinhrono
-    setTimeout(async () => {
-      try {
-        const messagesRes = await pool.query(
-          `SELECT sender, message FROM ticket_messages
-           WHERE ticket_id = $1
-           ORDER BY created_at ASC`,
-          [ticketId]
-        );
-
-        const conversation = messagesRes.rows.map((msg) => ({
-          role: msg.sender === "user" ? "user" : "assistant",
-          content: msg.message,
-        }));
-
-        const chatgptResponse = await getChatGPTReply(conversation);
-
-        await pool.query(
-          `INSERT INTO ticket_messages (ticket_id, sender, message)
-           VALUES ($1, 'admin', $2)`,
-          [ticketId, chatgptResponse]
-        );
-
-        await pool.query(
-          `UPDATE tickets SET status = 'waiting_user', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [ticketId]
-        );
-      } catch (err) {
-        console.error("ChatGPT auto-reply after user message failed:", err);
-      }
-    }, 0); // odmah asinhrono
-
     res
       .status(201)
-      .json({ message: "Message sent. ChatGPT will respond shortly." });
+      .json({ message: "Message sent. ChatGPT will respond in 3 hours." });
   } catch (err) {
     console.error("Add message error:", err);
     res.status(500).json({ error: "Failed to add message." });

@@ -2,7 +2,7 @@ const fetch = require("node-fetch");
 
 const CQ_API_KEY = process.env.CQ_API_KEY;
 
-async function cqFetch(endpoint) {
+async function cryptoquantFetch(endpoint) {
   const url = `https://api.cryptoquant.com/v1/${endpoint}`;
 
   const response = await fetch(url, {
@@ -19,4 +19,4 @@ async function cqFetch(endpoint) {
   return response.json();
 }
 
-module.exports = { cqFetch };
+module.exports = { cryptoquantFetch };

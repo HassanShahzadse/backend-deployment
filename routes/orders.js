@@ -73,11 +73,11 @@ router.post("/", authenticateToken, async (req, res) => {
       (now.getMonth() - baseMonth) +
       (now.getFullYear() - 2025) * 12;
 
-    // Dohvati sve invoice_number za taj monthSequence
+    // Dohvati sve invoice_number za taj monthSequence (per user)
     const invoiceCheck = await client.query(
       `SELECT invoice_number FROM orders
-   WHERE invoice_number LIKE $1`,
-      [`8000315658-${currentSequence}-%`]
+   WHERE invoice_number LIKE $1 AND user_id = $2`,
+      [`8000315658-${currentSequence}-%`, req.user.userId]
     );
 
     let invoiceRand;

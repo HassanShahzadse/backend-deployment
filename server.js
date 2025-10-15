@@ -5,6 +5,7 @@ const pool = require("./db");
 //require("./cron/dailyCreditReport");
 //require("./cron/lowCreditAlert");
 //require("./cron/zeroCreditAlert");
+require("./cron/sendScheduledReplies");
 
 const app = express();
 app.use(cors());
