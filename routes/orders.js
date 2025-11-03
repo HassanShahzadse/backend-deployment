@@ -288,7 +288,7 @@ router.post("/preview", authenticateToken, async (req, res) => {
   }
 
   try {
-    const pricePerCall = 0.19; // €0.025 po pozivu
+    const pricePerCall = 0.21; // €0.025 po pozivu
     const taxPercentage = 25; // PDV 25%
 
     const amount = parseFloat(apiCalls);
