@@ -69,6 +69,11 @@ router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
     const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (user.rows.length === 0) {
       return res.status(400).json({ error: "Invalid credentials" });
@@ -228,5 +233,49 @@ router.post("/reset-password/:token", async (req, res) => {
   }
 });
 
+// Report suspicious login
+// POST /api/users/security/report-suspicious-login
+router.post("/security/report-suspicious-login", authenticateToken, async (req, res) => {
+  try {
+    const { notification_id, login_details } = req.body;
+    const userId = req.user.userId;
+
+    // Log the security report (you can create a security_reports table if needed)
+    // For now, we'll just log it and potentially invalidate sessions
+    console.log(`🚨 Security Alert: User ${userId} reported suspicious login`, {
+      notification_id,
+      login_details,
+      reported_at: new Date().toISOString()
+    });
+
+    // You can add logic here to:
+    // 1. Invalidate all active sessions for the user
+    // 2. Send an email alert
+    // 3. Log to a security_reports table
+    // 4. Mark the notification as reported
+
+    // Example: Mark notification as seen/archived after reporting
+    if (notification_id) {
+      try {
+        await pool.query(
+          `UPDATE notification_seen 
+           SET seen_at = CURRENT_TIMESTAMP, archived_at = CURRENT_TIMESTAMP
+           WHERE notification_id = $1 AND user_id = $2`,
+          [notification_id, userId]
+        );
+      } catch (notifErr) {
+        console.error("Error updating notification:", notifErr.message);
+      }
+    }
+
+    res.json({
+      message: "Suspicious login reported successfully. We've logged this incident and will investigate.",
+      reported: true
+    });
+  } catch (err) {
+    console.error("Report suspicious login error:", err.message);
+    res.status(500).json({ error: "Failed to report suspicious login" });
+  }
+});
 
 module.exports = router;

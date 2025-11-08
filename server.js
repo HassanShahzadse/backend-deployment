@@ -6,6 +6,7 @@ const pool = require("./db");
 //require("./cron/lowCreditAlert");
 //require("./cron/zeroCreditAlert");
 require("./cron/sendScheduledReplies");
+require("./cron/checkNewNotifications");
 
 const app = express();
 app.use(cors());
@@ -28,6 +29,9 @@ app.use("/api/usage", usageRoutes);
 
 const creditBalanceRoutes = require("./routes/dashboard");
 app.use("/api/credit-balance", creditBalanceRoutes);
+
+const notificationsRoutes = require("./routes/notifications");
+app.use("/api/notifications", notificationsRoutes);
 
 const checkApiKey = require("./middleware/checkApiKey");
 const apiService = require("./public_service/api");
