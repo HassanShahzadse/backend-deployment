@@ -2,6 +2,7 @@
 const cron = require("node-cron");
 const pool = require("../db");
 const sendEmail = require("../utils/sendEmail");
+const checkNotificationPreferences = require("../utils/checkNotificationPreferences");
 
 console.log("✅ Zero Credit Alert cron loaded");
 
@@ -35,25 +36,28 @@ cron.schedule("*/10 * * * *", async () => {
       // Send if never sent OR last sent >= 24 hours
       if (!lastSent || hoursSince >= 24) {
         try {
-          await sendEmail(
-            row.email,
-            "🚨 All Credits Spent - Service Paused",
-            "zeroCreditAlert",
-            {
-              User_Name: row.company_name || "Valued Customer",
-              RECHARGE_LINK: `${process.env.FRONTEND_URL}/payment`
-            }
-          );
+          // Check if user wants to receive security alerts
+          const wantsAlerts = await checkNotificationPreferences(row.user_id, "security_alerts");
+          
+          if (wantsAlerts) {
+            await sendEmail(
+              row.email,
+              "🚨 All Credits Spent - Service Paused",
+              "zeroCreditAlert",
+              {
+                User_Name: row.company_name || "Valued Customer",
+                RECHARGE_LINK: `${process.env.FRONTEND_URL}/payment`
+              }
+            );
+          }
 
-          // Update last_zero_alert_at so we don't spam
+          // Update last_zero_alert_at regardless of email being sent
           await pool.query(
             `UPDATE public.user_purchased_counters
              SET last_zero_alert_at = $1
              WHERE user_id = $2`,
             [now.toISOString(), row.user_id]
           );
-
-          console.log(`🚨 Zero credit alert sent to ${row.email}`);
         } catch (err) {
           console.error(`❌ Failed to send zero-credit email to ${row.email}:`, err.message || err);
         }

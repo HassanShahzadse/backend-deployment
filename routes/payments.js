@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
+const checkNotificationPreferences = require("../utils/checkNotificationPreferences");
 require("dotenv").config();
 
 // === HELPER: base64url decode ===
@@ -80,18 +81,22 @@ router.get("/success", async (req, res) => {
       const userEmail = user.email || user.billing_email;
 
       if (userEmail) {
-        await sendEmail(
-          userEmail,
-          `Your Order ${order.order_number} is created successfully`,
-          'orderSuccess',
-          {
-            User_Name: user.company_name || 'Valued Customer',
-            ORDER_ID: order.order_number,
-            TOTAL_AMOUNT: `${Number(order.price_eur).toFixed(2)} EUR`,
-            ORDER_DETAILS_LINK: `${process.env.FRONTEND_URL}/orders`
-          }
-        );
-        console.log(`✅ Success email sent for Order ${order.order_number}`);
+        // Check if user wants to receive email notifications
+        const wantsEmails = await checkNotificationPreferences(order.user_id, "email_notifications");
+        
+        if (wantsEmails) {
+          await sendEmail(
+            userEmail,
+            `Your Order ${order.order_number} is created successfully`,
+            'orderSuccess',
+            {
+              User_Name: user.company_name || 'Valued Customer',
+              ORDER_ID: order.order_number,
+              TOTAL_AMOUNT: `${Number(order.price_eur).toFixed(2)} EUR`,
+              ORDER_DETAILS_LINK: `${process.env.FRONTEND_URL}/orders`
+            }
+          );
+        }
       }
     } catch (emailError) {
       console.error("❌ Failed to send success email:", emailError.message);
@@ -125,16 +130,21 @@ router.get("/success", async (req, res) => {
         const userEmail = user.email || user.billing_email;
 
         if (userEmail) {
-          await sendEmail(
-            userEmail,
-            'Order Creation Failed',
-            'orderFailed',
-            {
-              User_Name: user.company_name || 'Valued Customer',
-              ORDER_ID: order.order_number,
-              RETRY_PAYMENT_LINK: `${process.env.FRONTEND_URL}/payment`
-            }
-          );
+          // Check if user wants to receive email notifications
+          const wantsEmails = await checkNotificationPreferences(order.user_id, "email_notifications");
+          
+          if (wantsEmails) {
+            await sendEmail(
+              userEmail,
+              'Order Creation Failed',
+              'orderFailed',
+              {
+                User_Name: user.company_name || 'Valued Customer',
+                ORDER_ID: order.order_number,
+                RETRY_PAYMENT_LINK: `${process.env.FRONTEND_URL}/payment`
+              }
+            );
+          }
         }
       }
     } catch (emailError) {
