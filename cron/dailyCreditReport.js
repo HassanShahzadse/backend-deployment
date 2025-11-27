@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const pool = require("../db");
 const sendEmail = require("../utils/sendEmail");
+const checkNotificationPreferences = require("../utils/checkNotificationPreferences");
 
 console.log("✅ Daily Credit Report cron loaded");
 
@@ -26,18 +27,22 @@ cron.schedule("0 0 * * *", async () => {
       const totalRemaining = Math.max(user.total_purchased - user.total_usage, 0);
       
       try {
-        await sendEmail(
-          user.email,
-          "Your Daily Credit Usage Report",
-          "dailyCreditReport", // template name
-          {
-            User_Name: user.company_name || "Valued Customer",
-            CURRENT_BALANCE: totalRemaining,
-            DAILY_USAGE: user.daily_usage || 0,
-            FRONTEND_URL: process.env.FRONTEND_URL,
-          }
-        );
-        console.log(`📤 Sent daily report to ${user.email}`);
+        // Check if user wants to receive email notifications
+        const wantsEmails = await checkNotificationPreferences(user.id, "email_notifications");
+        
+        if (wantsEmails) {
+          await sendEmail(
+            user.email,
+            "Your Daily Credit Usage Report",
+            "dailyCreditReport", // template name
+            {
+              User_Name: user.company_name || "Valued Customer",
+              CURRENT_BALANCE: totalRemaining,
+              DAILY_USAGE: user.daily_usage || 0,
+              FRONTEND_URL: process.env.FRONTEND_URL,
+            }
+          );
+        }
       } catch (err) {
         console.error(`❌ Failed to send to ${user.email}:`, err.message);
       }

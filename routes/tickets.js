@@ -4,6 +4,7 @@ const pool = require("../db");
 const authenticateToken = require("../middleware/auth");
 const { getChatGPTReply } = require("../services/chatgpt");
 const sendEmail = require("../utils/sendEmail");
+const checkNotificationPreferences = require("../utils/checkNotificationPreferences");
 
 // GET /tickets – lista svih ticketa za trenutno prijavljenog korisnika
 router.get("/", authenticateToken, async (req, res) => {
@@ -91,17 +92,22 @@ router.post("/", authenticateToken, async (req, res) => {
     );
 
       try {
-        await sendEmail(
-            user.email,
-            `Ticket #${ticketId.toString().slice(0, 6)} Opened: ${ticketTitle}`,
-            'ticketOpened', // template: ticketOpened.html
-            {
-                User_Name: user.company_name || 'Valued Customer',
-                TICKET_ID: ticketId.toString().slice(0, 6),
-                TICKET_SUBJECT: ticketTitle,
-                TICKET_DETAILS_LINK: `${process.env.FRONTEND_URL}/tickets/${ticketId}`
-            }
-        );
+        // Check if user wants to receive email notifications
+        const wantsEmails = await checkNotificationPreferences(req.user.userId, "email_notifications");
+        
+        if (wantsEmails) {
+          await sendEmail(
+              user.email,
+              `Ticket #${ticketId.toString().slice(0, 6)} Opened: ${ticketTitle}`,
+              'ticketOpened', // template: ticketOpened.html
+              {
+                  User_Name: user.company_name || 'Valued Customer',
+                  TICKET_ID: ticketId.toString().slice(0, 6),
+                  TICKET_SUBJECT: ticketTitle,
+                  TICKET_DETAILS_LINK: `${process.env.FRONTEND_URL}/tickets/${ticketId}`
+              }
+          );
+        }
     } catch (emailErr) {
         console.error("❌ Email failed (New Ticket):", emailErr.message);
     };
@@ -201,17 +207,22 @@ router.patch("/:id/status", authenticateToken, async (req, res) => {
         const user = userDetailsRes.rows[0];
 
         try {
-            await sendEmail(
-                user.email,
-                `Ticket #${ticket.id.toString().slice(0, 6)} is now ${status}`,
-                'ticketClosed', // template: ticketClosed.html
-                {
-                    User_Name: user.company_name || 'Valued Customer',
-                    TICKET_ID: ticket.id.toString().slice(0, 6),
-                    RESOLUTION_SUMMARY: `Your issue regarding "${ticket.title}" has been successfully addressed.`,
-                    TICKET_DETAILS_LINK: `${process.env.FRONTEND_URL}/tickets/${ticket.id}`
-                }
-            );
+            // Check if user wants to receive email notifications
+            const wantsEmails = await checkNotificationPreferences(req.user.userId, "email_notifications");
+            
+            if (wantsEmails) {
+              await sendEmail(
+                  user.email,
+                  `Ticket #${ticket.id.toString().slice(0, 6)} is now ${status}`,
+                  'ticketClosed', // template: ticketClosed.html
+                  {
+                      User_Name: user.company_name || 'Valued Customer',
+                      TICKET_ID: ticket.id.toString().slice(0, 6),
+                      RESOLUTION_SUMMARY: `Your issue regarding "${ticket.title}" has been successfully addressed.`,
+                      TICKET_DETAILS_LINK: `${process.env.FRONTEND_URL}/tickets/${ticket.id}`
+                  }
+              );
+            }
         } catch (emailErr) {
             console.error(`❌ Email failed (Ticket ${status}):`, emailErr.message);
         }

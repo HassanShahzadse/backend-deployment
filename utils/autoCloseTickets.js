@@ -1,5 +1,6 @@
 const pool = require("../db/index");
 const sendEmail = require("./sendEmail");
+const checkNotificationPreferences = require("./checkNotificationPreferences");
 
 async function autoCloseInactiveTickets() {
   try {
@@ -30,18 +31,22 @@ async function autoCloseInactiveTickets() {
     // Send email to each user
     for (const ticket of ticketsToClose.rows) {
       try {
-        await sendEmail(
-          ticket.email,
-          `Ticket #${ticket.id.toString().slice(0, 6)} is now closed`,
-          'ticketClosed',
-          {
-            User_Name: ticket.company_name || 'Valued Customer',
-            TICKET_ID: ticket.id.toString().slice(0, 6),
-            RESOLUTION_SUMMARY: `Your ticket regarding "${ticket.title}" has been automatically closed due to inactivity.`,
-            TICKET_DETAILS_LINK: `${process.env.FRONTEND_URL}/tickets/${ticket.id}`
-          }
-        );
-        console.log(`✅ Sent auto-close email for ticket #${ticket.id}`);
+        // Check if user wants to receive email notifications
+        const wantsEmails = await checkNotificationPreferences(ticket.user_id, "email_notifications");
+        
+        if (wantsEmails) {
+          await sendEmail(
+            ticket.email,
+            `Ticket #${ticket.id.toString().slice(0, 6)} is now closed`,
+            'ticketClosed',
+            {
+              User_Name: ticket.company_name || 'Valued Customer',
+              TICKET_ID: ticket.id.toString().slice(0, 6),
+              RESOLUTION_SUMMARY: `Your ticket regarding "${ticket.title}" has been automatically closed due to inactivity.`,
+              TICKET_DETAILS_LINK: `${process.env.FRONTEND_URL}/tickets/${ticket.id}`
+            }
+          );
+        }
       } catch (emailErr) {
         console.error(`❌ Failed to send email for ticket #${ticket.id}:`, emailErr.message);
       }

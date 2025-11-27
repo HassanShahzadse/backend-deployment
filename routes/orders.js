@@ -7,6 +7,7 @@ require("dotenv").config();
 const axios = require("axios");
 const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
+const checkNotificationPreferences = require("../utils/checkNotificationPreferences");
 
 
 // Funkcija za dohvat BTC cijene
@@ -376,18 +377,22 @@ router.patch("/update-status", async (req, res) => {
     // 3. ✨ ORDER FAILED EMAIL LOGIC (HIGHLIGHTED) ✨
     if (status === 'failed') {
         try {
-            await sendEmail(
-                userEmail, 
-                `❌ Payment Failed for Order ${order.order_number}`, 
-                'orderFailed', // Template: orderFailed.html
-                {
-                    User_Name: user.company_name || 'Valued Customer', 
-                    ORDER_ID: order.order_number,
-                    // Retry link jo frontend par order ID ya encrypted key ke saath jaayega
-                    RETRY_PAYMENT_LINK: `${process.env.FRONTEND_URL}/checkout?retry=${order.id}` 
-                }
-            );
-            console.log(`❌ Order Failed email sent for Order ${order.order_number}`);
+            // Check if user wants to receive email notifications
+            const wantsEmails = await checkNotificationPreferences(order.user_id, "email_notifications");
+            
+            if (wantsEmails) {
+              await sendEmail(
+                  userEmail, 
+                  `❌ Payment Failed for Order ${order.order_number}`, 
+                  'orderFailed', // Template: orderFailed.html
+                  {
+                      User_Name: user.company_name || 'Valued Customer', 
+                      ORDER_ID: order.order_number,
+                      // Retry link jo frontend par order ID ya encrypted key ke saath jaayega
+                      RETRY_PAYMENT_LINK: `${process.env.FRONTEND_URL}/checkout?retry=${order.id}` 
+                  }
+              );
+            }
         } catch (emailError) {
             console.error("❌ E-mail slanje greška (Order Failed):", emailError.message);
         }
