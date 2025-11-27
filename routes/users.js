@@ -84,8 +84,130 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
+    // Check if user has 2FA enabled
+    const preferencesRes = await pool.query(
+      "SELECT two_factor_enabled FROM user_preferences WHERE user_id = $1",
+      [user.rows[0].id]
+    );
+
+    const twoFactorEnabled = preferencesRes.rows.length > 0 && preferencesRes.rows[0].two_factor_enabled;
+
+    // If 2FA is not enabled, return token immediately
+    if (!twoFactorEnabled) {
+      const token = jwt.sign(
+        { userId: user.rows[0].id, email: user.rows[0].email },
+        process.env.JWT_SECRET,
+        { expiresIn: "3h" }
+      );
+
+      return res.json({
+        message: "Login successful",
+        token,
+        user: {
+          id: user.rows[0].id,
+          email: user.rows[0].email,
+          company_name: user.rows[0].company_name,
+          api_key: user.rows[0].api_key,
+        },
+      });
+    }
+
+    // If 2FA is enabled, generate and send OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.connection.remoteAddress || "unknown";
+
+    // Delete any existing unused OTPs for this user
+    await pool.query(
+      "DELETE FROM two_factor_otp WHERE user_id = $1 AND used = false",
+      [user.rows[0].id]
+    );
+
+    // Insert new OTP
+    await pool.query(
+      `INSERT INTO two_factor_otp (user_id, otp_code, expires_at, ip_address)
+       VALUES ($1, $2, $3, $4)`,
+      [user.rows[0].id, otp, expiresAt, ip]
+    );
+
+    // Send OTP email
+    try {
+      await sendEmail(
+        user.rows[0].email,
+        "Your Login Verification Code",
+        "twoFactorLogin",
+        {
+          User_Name: user.rows[0].company_name || "Valued Customer",
+          OTP_CODE: otp,
+          EXPIRY_MINUTES: "5"
+        }
+      );
+    } catch (emailErr) {
+      console.error("❌ Failed to send 2FA login email:", emailErr.message);
+      return res.status(500).json({ error: "Failed to send verification code" });
+    }
+
+    res.json({
+      requires2FA: true,
+      userId: user.rows[0].id,
+      message: "OTP sent to your email"
+    });
+  } catch (err) {
+    console.error("Login error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify 2FA OTP code
+router.post("/verify-2fa", async (req, res) => {
+  const { userId, otpCode } = req.body;
+
+  try {
+    // Validate inputs
+    if (!userId || !otpCode) {
+      return res.status(400).json({ error: "User ID and OTP code are required" });
+    }
+
+    // Query OTP from database
+    const otpRes = await pool.query(
+      `SELECT id, expires_at, used FROM two_factor_otp 
+       WHERE user_id = $1 AND otp_code = $2 AND used = false`,
+      [userId, otpCode]
+    );
+
+    // Check if OTP exists
+    if (otpRes.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid OTP code" });
+    }
+
+    const otpRecord = otpRes.rows[0];
+
+    // Check if OTP is expired
+    if (new Date() > new Date(otpRecord.expires_at)) {
+      return res.status(400).json({ error: "OTP expired. Please request a new one." });
+    }
+
+    // Mark OTP as used
+    await pool.query(
+      "UPDATE two_factor_otp SET used = true WHERE id = $1",
+      [otpRecord.id]
+    );
+
+    // Get user info
+    const userRes = await pool.query(
+      "SELECT id, email, company_name, api_key FROM users WHERE id = $1",
+      [userId]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = userRes.rows[0];
+
+    // Generate JWT token
     const token = jwt.sign(
-      { userId: user.rows[0].id, email: user.rows[0].email },
+      { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: "3h" }
     );
@@ -94,18 +216,93 @@ router.post("/login", async (req, res) => {
       message: "Login successful",
       token,
       user: {
-        id: user.rows[0].id,
-        email: user.rows[0].email,
-        company_name: user.rows[0].company_name,
-        api_key: user.rows[0].api_key, // uključeno dohvaćanje api_key-a
+        id: user.id,
+        email: user.email,
+        company_name: user.company_name,
+        api_key: user.api_key,
       },
     });
   } catch (err) {
-    console.error("Login error:", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("Verify 2FA error:", err.message);
+    res.status(500).json({ error: "Failed to verify OTP" });
   }
 });
 
+// Resend 2FA OTP code
+router.post("/resend-2fa-otp", async (req, res) => {
+  const { userId } = req.body;
+
+  try {
+    // Validate input
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    // Get user info
+    const userRes = await pool.query(
+      "SELECT id, email, company_name FROM users WHERE id = $1",
+      [userId]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = userRes.rows[0];
+
+    // Check if user has 2FA enabled
+    const preferencesRes = await pool.query(
+      "SELECT two_factor_enabled FROM user_preferences WHERE user_id = $1",
+      [userId]
+    );
+
+    if (preferencesRes.rows.length === 0 || !preferencesRes.rows[0].two_factor_enabled) {
+      return res.status(400).json({ error: "2FA is not enabled for this user" });
+    }
+
+    // Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.connection.remoteAddress || "unknown";
+
+    // Delete old unused OTPs for this user
+    await pool.query(
+      "DELETE FROM two_factor_otp WHERE user_id = $1 AND used = false",
+      [userId]
+    );
+
+    // Insert new OTP
+    await pool.query(
+      `INSERT INTO two_factor_otp (user_id, otp_code, expires_at, ip_address)
+       VALUES ($1, $2, $3, $4)`,
+      [userId, otp, expiresAt, ip]
+    );
+
+    // Send OTP email
+    try {
+      await sendEmail(
+        user.email,
+        "Your Login Verification Code",
+        "twoFactorLogin",
+        {
+          User_Name: user.company_name || "Valued Customer",
+          OTP_CODE: otp,
+          EXPIRY_MINUTES: "5"
+        }
+      );
+    } catch (emailErr) {
+      console.error("❌ Failed to send 2FA resend email:", emailErr.message);
+      return res.status(500).json({ error: "Failed to send verification code" });
+    }
+
+    res.json({
+      message: "New OTP sent to your email"
+    });
+  } catch (err) {
+    console.error("Resend 2FA OTP error:", err.message);
+    res.status(500).json({ error: "Failed to resend OTP" });
+  }
+});
 
 // Dohvati podatke prijavljenog korisnika
 router.get("/me", authenticateToken, async (req, res) => {
@@ -528,27 +725,34 @@ router.patch("/preferences/security", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "User preferences not found" });
     }
 
-    // If 2FA is being enabled, send OTP email
+    // If 2FA is being enabled, send confirmation email
     if (two_factor_enabled === true) {
       try {
-        const userRes = await pool.query(
-          `SELECT email, company_name FROM users WHERE id = $1`,
-          [userId]
-        );
-        const user = userRes.rows[0];
+        const checkNotificationPreferences = require("../utils/checkNotificationPreferences");
+        
+        // Check if user wants to receive security alerts
+        const wantsAlerts = await checkNotificationPreferences(userId, "security_alerts");
+        
+        if (wantsAlerts) {
+          const userRes = await pool.query(
+            `SELECT email, company_name FROM users WHERE id = $1`,
+            [userId]
+          );
+          const user = userRes.rows[0];
 
-        // Generate 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          // Generate 6-digit OTP
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        await sendEmail(
-          user.email,
-          "Two-Factor Authentication Enabled",
-          "twoFactorEnabled",
-          {
-            User_Name: user.company_name || "Valued Customer",
-            OTP_CODE: otp
-          }
-        );
+          await sendEmail(
+            user.email,
+            "Two-Factor Authentication Enabled",
+            "twoFactorEnabled",
+            {
+              User_Name: user.company_name || "Valued Customer",
+              OTP_CODE: otp
+            }
+          );
+        }
       } catch (emailErr) {
         console.error("❌ Failed to send 2FA email:", emailErr.message);
         // Don't fail the update if email fails
