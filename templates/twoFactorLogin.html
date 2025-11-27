@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Two-Factor Authentication Code</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f9fafb;
+        margin: 0;
+        padding: 0;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 20px auto;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+        padding: 30px 20px;
+        text-align: center;
+        color: #ffffff;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .content {
+        padding: 40px 30px;
+        color: #374151;
+        line-height: 1.6;
+      }
+      .content h2 {
+        color: #111827;
+        font-size: 20px;
+        margin-bottom: 16px;
+      }
+      .content p {
+        margin: 12px 0;
+        font-size: 15px;
+      }
+      .otp-box {
+        background: #f3f4f6;
+        border: 2px dashed #ec4899;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        margin: 24px 0;
+      }
+      .otp-code {
+        font-size: 32px;
+        font-weight: 700;
+        color: #ec4899;
+        letter-spacing: 4px;
+        font-family: "Courier New", monospace;
+      }
+      .info-box {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        padding: 16px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      .info-box p {
+        margin: 0;
+        color: #92400e;
+        font-size: 14px;
+      }
+      .warning-box {
+        background: #fef2f2;
+        border-left: 4px solid #ef4444;
+        padding: 16px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      .warning-box p {
+        margin: 0;
+        color: #991b1b;
+        font-size: 14px;
+      }
+      .footer {
+        background: #f9fafb;
+        padding: 20px;
+        text-align: center;
+        color: #6b7280;
+        font-size: 13px;
+        border-top: 1px solid #e5e7eb;
+      }
+      .footer p {
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <h1>🔐 Login Verification Code</h1>
+      </div>
+
+      <div class="content">
+        <h2>Hello {{User_Name}},</h2>
+        
+        <p>
+          Someone is attempting to log in to your Blocklytics account. 
+          To complete the login, please use the verification code below:
+        </p>
+
+        <div class="otp-box">
+          <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;">
+            Your Verification Code:
+          </p>
+          <div class="otp-code">{{OTP_CODE}}</div>
+        </div>
+
+        <div class="info-box">
+          <p>
+            <strong>⏱️ This code will expire in {{EXPIRY_MINUTES}} minutes.</strong>
+            Please enter it promptly to complete your login.
+          </p>
+        </div>
+
+        <div class="warning-box">
+          <p>
+            <strong>⚠️ Security Warning:</strong> If you did not attempt to log in, 
+            please ignore this email and consider changing your password immediately. 
+            Never share this code with anyone.
+          </p>
+        </div>
+
+        <p style="margin-top: 30px;">
+          For your security, this code can only be used once and will expire automatically.
+        </p>
+
+        <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">
+          Best regards,<br />
+          <strong>The Blocklytics Team</strong>
+        </p>
+      </div>
+
+      <div class="footer">
+        <p>© 2025 Blocklytics. All rights reserved.</p>
+        <p>If you have any questions, feel free to reach out to our support team.</p>
+      </div>
+    </div>
+  </body>
+</html>
+
