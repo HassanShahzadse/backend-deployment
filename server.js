@@ -33,6 +33,9 @@ app.use("/api/credit-balance", creditBalanceRoutes);
 const notificationsRoutes = require("./routes/notifications");
 app.use("/api/notifications", notificationsRoutes);
 
+const reconciliationsRoutes = require("./routes/reconciliations");
+app.use("/api/reconciliations", reconciliationsRoutes);
+
 const checkApiKey = require("./middleware/checkApiKey");
 const apiService = require("./public_service/api");
 app.use("/api/public/v1/", checkApiKey, apiService);
