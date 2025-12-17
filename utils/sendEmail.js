@@ -4,14 +4,17 @@ const fs = require("fs-extra");
 
 const path = require("path");
 const handlebars = require("handlebars");
-const sgMail = require("@sendgrid/mail");
+const { TransactionalEmailsApi, SendSmtpEmail } = require("@getbrevo/brevo");
 
 require("dotenv").config();
 
-if (!process.env.SENDGRID_API_KEY) {
-  console.error("⚠️ SENDGRID_API_KEY is not set in .env");
+if (!process.env.BREVO_API_KEY) {
+  console.error("⚠️ BREVO_API_KEY is not set in .env");
 }
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Configure API key authorization
+const apiInstance = new TransactionalEmailsApi();
+apiInstance.authentications.apiKey.apiKey = process.env.BREVO_API_KEY;
 
 async function sendEmail(to, subject, templateName, context = {}) {
   try {
@@ -24,26 +27,26 @@ async function sendEmail(to, subject, templateName, context = {}) {
     const compiled = handlebars.compile(source);
     const html = compiled(context);
 
-    const msg = {
-      to,
-      from: `${process.env.SMTP_FROM_NAME || "Blocklytics"} <${process.env.SMTP_FROM_EMAIL}>`,
-      subject,
-      html,
-      // optional: replyTo
-      replyTo: process.env.REPLY_TO_EMAIL || process.env.SMTP_FROM_EMAIL,
-    };
+    const sendSmtpEmail = new SendSmtpEmail();
+    sendSmtpEmail.sender = {
+      name: process.env.SMTP_FROM_NAME || "Blocklytics",
+      email: process.env.SMTP_FROM_EMAIL || "support@blocklytics.net",
+    };    
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = html;
+    sendSmtpEmail.replyTo = { email: process.env.REPLY_TO_EMAIL || process.env.SMTP_FROM_EMAIL };
 
     // send
-    const [response] = await sgMail.send(msg);
-    // response contains statusCode and headers
-    console.log(`✅ Email sent successfully to ${to} (SendGrid status ${response.statusCode})`);
+    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`✅ Email sent successfully to ${to} (Brevo messageId: ${response.messageId})`);
     return response;
   } catch (err) {
-    // SendGrid error structure: err.response.body for details
+    // Brevo error structure
     if (err && err.response && err.response.body) {
-      console.error("❌ SendGrid error:", err.response.body);
+      console.error("❌ Brevo error:", err.response.body);
     } else {
-      console.error("❌ SendGrid error:", err.message || err);
+      console.error("❌ Brevo error:", err.message || err);
     }
     throw err;
   }
